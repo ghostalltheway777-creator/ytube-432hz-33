@@ -1,0 +1,27 @@
+{
+  "name": "ytube-432hz-33",
+  "version": "1.0.0",
+  "description": "YTube 432Hz 33 — YouTube i 432 Hz uden reklamer",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.ytube432hz.app",
+    "productName": "YTube 432Hz 33",
+    "win": {
+      "target": "portable",
+      "icon": "icon.ico"
+    },
+    "files": [
+      "main.js",
+      "inject.js",
+      "pitch-processor.js"
+    ]
+  }
+}

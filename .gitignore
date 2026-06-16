@@ -1,0 +1,5 @@
+﻿node_modules/
+dist/
+electron-err.log
+install.log
+electron-binary.zip
