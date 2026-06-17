@@ -1,0 +1,58 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Copy JS assets into Android project
+        run: |
+          cp pitch-processor.js android/app/src/main/assets/
+          cp inject.js android/app/src/main/assets/
+
+      - name: Generate Gradle wrapper
+        working-directory: android
+        run: gradle wrapper --gradle-version 8.4 --distribution-type bin
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YTube-432Hz-33
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: YTube 432Hz 33 — Android APK
+          body: |
+            **Download og installer APK'en på din Android-telefon.**
+
+            1. Download `app-debug.apk`
+            2. Åbn filen på telefonen (tillad installation fra ukendte kilder)
+            3. Åbn appen — du er direkte på YouTube i 432 Hz
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
