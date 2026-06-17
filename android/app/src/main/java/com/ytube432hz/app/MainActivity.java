@@ -130,10 +130,28 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private long lastBackPress = 0;
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
-            webView.goBack();
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            String url = webView.getUrl();
+            boolean atHome = url == null
+                || url.equals("https://m.youtube.com/")
+                || url.equals("https://m.youtube.com")
+                || url.startsWith("https://m.youtube.com/?");
+            if (!atHome && webView.canGoBack()) {
+                webView.goBack();
+                return true;
+            }
+            // At home — double-tap back to exit
+            long now = System.currentTimeMillis();
+            if (now - lastBackPress < 2000) {
+                finish();
+            } else {
+                lastBackPress = now;
+                android.widget.Toast.makeText(this, "Tryk tilbage igen for at lukke", android.widget.Toast.LENGTH_SHORT).show();
+            }
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -142,7 +160,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        webView.onPause();
+        // Don't pause WebView — keeps audio playing when screen locks or user switches app
     }
 
     @Override
