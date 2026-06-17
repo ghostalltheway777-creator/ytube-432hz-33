@@ -1,0 +1,32 @@
+name: Build Android APK
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Set up JDK 17
+
+        with:
+
+          distribution: 'temurin'          
+        run: |                             android/app/src/main/assets/               android/app/src/main/assets/                     er
+        working-directory: android         --gradle-version 8.4 --distribution-type   bin
+      - name: Build APK                    
+        run: ./gradlew assembleDebug       --no-d
+      - name: Upload APK                         ct@v4
+        with:                              
+          path: android/app/build/outputs/apk/deb
+          retention-days: 30
+
+        uses: softpr
+        with:
+
+          name: YTube 432Hz 33 — Android   APK
+          body: "Download app-debug.apk og instal
+          files: android/app/build/outputs/apk/de
+          make_latest: true 
+          GITHUB_TOKEN: ${{ secret
