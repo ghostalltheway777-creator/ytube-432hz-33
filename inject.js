@@ -156,6 +156,22 @@
     setTimeout(() => { txt.textContent = prev; }, 1800);
   }
 
+  // ── Reklame-skipper ───────────────────────────────────────────────────────────
+  setInterval(() => {
+    // Klik "Spring over"-knap
+    const skip = document.querySelector(
+      '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-skip-ad-button__text'
+    );
+    if (skip) skip.click();
+    // Skjul banner-reklamer
+    const banners = document.querySelectorAll(
+      '.ytp-ad-overlay-container, .ytp-ad-text-overlay, ' +
+      '#player-ads, ytd-banner-promo-renderer, ' +
+      '.ytd-ad-slot-renderer, ytd-ad-slot-renderer'
+    );
+    banners.forEach(el => { el.style.display = 'none'; });
+  }, 300);
+
   // ── Init ──────────────────────────────────────────────────────────────────────
   function init() {
     buildUI();

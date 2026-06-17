@@ -9,6 +9,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -65,8 +66,17 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                String url = request.getUrl().toString();
+                if (isAdUrl(url)) {
+                    return new WebResourceResponse("text/plain", "utf-8",
+                        new java.io.ByteArrayInputStream(new byte[0]));
+                }
+                return super.shouldInterceptRequest(view, request);
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                // Keep all navigation inside the WebView
                 return false;
             }
 
@@ -85,6 +95,25 @@ public class MainActivity extends AppCompatActivity {
         String quoted = JSONObject.quote(pitchCode);
         String js = "window.__PITCH_CODE__=" + quoted + ";\n" + injectCode;
         view.evaluateJavascript(js, null);
+    }
+
+    private static final String[] AD_HOSTS = {
+        "doubleclick.net", "googlesyndication.com", "googleadservices.com",
+        "googletagmanager.com", "googletagservices.com", "adservice.google.",
+        "pagead2.googlesyndication.com", "tpc.googlesyndication.com",
+        "imasdk.googleapis.com", "static.doubleclick.net"
+    };
+
+    private boolean isAdUrl(String url) {
+        for (String host : AD_HOSTS) {
+            if (url.contains(host)) return true;
+        }
+        if (url.contains("youtube.com") || url.contains("youtu.be")) {
+            if (url.contains("/pagead/") || url.contains("/ptracking")
+                || url.contains("/api/stats/ads") || url.contains("&ad_type=")
+                || url.contains("/get_midroll_info")) return true;
+        }
+        return false;
     }
 
     private String readAsset(String name) {
