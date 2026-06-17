@@ -3,8 +3,7 @@ package com.ytube432hz.app;
 import android.annotation.SuppressLint;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.view.KeyEvent;
-import android.view.View;
+import android.os.PowerManager;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
@@ -13,6 +12,8 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
@@ -24,8 +25,9 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private String pitchCode = "";
     private String injectCode = "";
+    private PowerManager.WakeLock wakeLock;
+    private long lastBackPress = 0;
 
-    // Same UA as the Electron app
     private static final String UA =
         "Mozilla/5.0 (Linux; Android 12; Pixel 6) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -36,7 +38,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Fullscreen, no action bar, black background
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -44,11 +45,15 @@ public class MainActivity extends AppCompatActivity {
         );
         if (getSupportActionBar() != null) getSupportActionBar().hide();
 
+        // Keep CPU running when screen locks so audio continues
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "YTube432Hz::audio");
+        wakeLock.acquire();
+
         webView = new WebView(this);
         webView.setBackgroundColor(Color.BLACK);
         setContentView(webView);
 
-        // Load JS assets
         pitchCode = readAsset("pitch-processor.js");
         injectCode = readAsset("inject.js");
 
@@ -67,8 +72,7 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                if (isAdUrl(url)) {
+                if (isAdUrl(request.getUrl().toString())) {
                     return new WebResourceResponse("text/plain", "utf-8",
                         new java.io.ByteArrayInputStream(new byte[0]));
                 }
@@ -87,14 +91,36 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.loadUrl("https://m.youtube.com");
+
+        // Back button — works on all Android versions including gesture navigation
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                android.webkit.WebBackForwardList history = webView.copyBackForwardList();
+                int idx = history.getCurrentIndex();
+                if (idx > 0) {
+                    String prevUrl = history.getItemAtIndex(idx - 1).getUrl();
+                    if (prevUrl != null && prevUrl.contains("youtube.com")) {
+                        webView.goBack();
+                        return;
+                    }
+                }
+                long now = System.currentTimeMillis();
+                if (now - lastBackPress < 2000) {
+                    finish();
+                } else {
+                    lastBackPress = now;
+                    Toast.makeText(MainActivity.this,
+                        "Tryk tilbage igen for at lukke", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
     }
 
     private void injectScript(WebView view) {
         if (pitchCode.isEmpty() || injectCode.isEmpty()) return;
-        // Safely encode pitch processor code as a JSON string literal
         String quoted = JSONObject.quote(pitchCode);
-        String js = "window.__PITCH_CODE__=" + quoted + ";\n" + injectCode;
-        view.evaluateJavascript(js, null);
+        view.evaluateJavascript("window.__PITCH_CODE__=" + quoted + ";\n" + injectCode, null);
     }
 
     private static final String[] AD_HOSTS = {
@@ -108,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
         for (String host : AD_HOSTS) {
             if (url.contains(host)) return true;
         }
-        if (url.contains("youtube.com") || url.contains("youtu.be")) {
+        if (url.contains("youtube.com")) {
             if (url.contains("/pagead/") || url.contains("/ptracking")
                 || url.contains("/api/stats/ads") || url.contains("&ad_type=")
                 || url.contains("/get_midroll_info")) return true;
@@ -130,39 +156,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private long lastBackPress = 0;
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // Check if the previous page in history is still on YouTube
-            android.webkit.WebBackForwardList history = webView.copyBackForwardList();
-            int idx = history.getCurrentIndex();
-            if (idx > 0) {
-                String prevUrl = history.getItemAtIndex(idx - 1).getUrl();
-                if (prevUrl != null && prevUrl.contains("youtube.com")) {
-                    webView.goBack();
-                    return true;
-                }
-            }
-            // No YouTube page to go back to — double-tap to exit
-            long now = System.currentTimeMillis();
-            if (now - lastBackPress < 2000) {
-                finish();
-            } else {
-                lastBackPress = now;
-                android.widget.Toast.makeText(this,
-                    "Tryk tilbage igen for at lukke", android.widget.Toast.LENGTH_SHORT).show();
-            }
-            return true;
-        }
-        return super.onKeyDown(keyCode, event);
-    }
-
     @Override
     protected void onPause() {
         super.onPause();
-        // Don't pause WebView — keeps audio playing when screen locks or user switches app
+        // Do NOT pause WebView — audio must keep playing in background
     }
 
     @Override
@@ -173,6 +170,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         webView.destroy();
         super.onDestroy();
     }
