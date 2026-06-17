@@ -158,19 +158,31 @@
 
   // ── Reklame-skipper ───────────────────────────────────────────────────────────
   setInterval(() => {
-    // Klik "Spring over"-knap
-    const skip = document.querySelector(
-      '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-skip-ad-button__text'
+    const player = document.querySelector('.html5-video-player');
+    const isAd = player && (
+      player.classList.contains('ad-showing') ||
+      player.classList.contains('ad-interrupting')
     );
-    if (skip) skip.click();
-    // Skjul banner-reklamer
-    const banners = document.querySelectorAll(
-      '.ytp-ad-overlay-container, .ytp-ad-text-overlay, ' +
-      '#player-ads, ytd-banner-promo-renderer, ' +
-      '.ytd-ad-slot-renderer, ytd-ad-slot-renderer'
-    );
-    banners.forEach(el => { el.style.display = 'none'; });
-  }, 300);
+    if (isAd) {
+      // Spol reklame-video til slutningen — hurtigste metode
+      const vid = document.querySelector('video');
+      if (vid && vid.duration && isFinite(vid.duration)) {
+        vid.currentTime = vid.duration;
+      }
+      // Klik skip-knap hvis tilgængelig
+      const skip = document.querySelector(
+        '.ytp-ad-skip-button, .ytp-skip-ad-button, ' +
+        '.ytp-ad-skip-button-modern, [class*="skip-ad"]'
+      );
+      if (skip) skip.click();
+    }
+    // Fjern banner- og overlay-reklamer
+    document.querySelectorAll(
+      '#player-ads, .ytp-ad-overlay-container, .ytp-ad-image-overlay, ' +
+      '.ytp-ad-text-overlay, ytd-banner-promo-renderer, ' +
+      'ytd-ad-slot-renderer, .ytd-ad-slot-renderer'
+    ).forEach(el => el.remove());
+  }, 200);
 
   // ── Init ──────────────────────────────────────────────────────────────────────
   function init() {

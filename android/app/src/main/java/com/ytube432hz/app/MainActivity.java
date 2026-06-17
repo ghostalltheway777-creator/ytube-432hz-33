@@ -135,22 +135,24 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            String url = webView.getUrl();
-            boolean atHome = url == null
-                || url.equals("https://m.youtube.com/")
-                || url.equals("https://m.youtube.com")
-                || url.startsWith("https://m.youtube.com/?");
-            if (!atHome && webView.canGoBack()) {
-                webView.goBack();
-                return true;
+            // Check if the previous page in history is still on YouTube
+            android.webkit.WebBackForwardList history = webView.copyBackForwardList();
+            int idx = history.getCurrentIndex();
+            if (idx > 0) {
+                String prevUrl = history.getItemAtIndex(idx - 1).getUrl();
+                if (prevUrl != null && prevUrl.contains("youtube.com")) {
+                    webView.goBack();
+                    return true;
+                }
             }
-            // At home — double-tap back to exit
+            // No YouTube page to go back to — double-tap to exit
             long now = System.currentTimeMillis();
             if (now - lastBackPress < 2000) {
                 finish();
             } else {
                 lastBackPress = now;
-                android.widget.Toast.makeText(this, "Tryk tilbage igen for at lukke", android.widget.Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(this,
+                    "Tryk tilbage igen for at lukke", android.widget.Toast.LENGTH_SHORT).show();
             }
             return true;
         }
