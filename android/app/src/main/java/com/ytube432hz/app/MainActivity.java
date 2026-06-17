@@ -1,7 +1,13 @@
 package com.ytube432hz.app;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.view.Window;
@@ -27,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
     private String injectCode = "";
     private PowerManager.WakeLock wakeLock;
     private long lastBackPress = 0;
+    private AudioFocusRequest focusRequest;
 
     private static final String UA =
         "Mozilla/5.0 (Linux; Android 12; Pixel 6) " +
@@ -49,6 +56,19 @@ public class MainActivity extends AppCompatActivity {
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "YTube432Hz::audio");
         wakeLock.acquire();
+
+        // Notifikations-tilladelse (Android 13+) så foreground-servicens notifikation kan vises
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{ Manifest.permission.POST_NOTIFICATIONS }, 1);
+        }
+
+        // Hold lyd-fokus så systemet ikke pauser os i baggrunden
+        requestAudioFocus();
+
+        // Foreground-service holder processen i live når skærmen er låst
+        PlaybackService.start(this);
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.BLACK);
@@ -117,6 +137,25 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    @SuppressWarnings("deprecation")
+    private void requestAudioFocus() {
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (am == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            AudioAttributes attrs = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build();
+            focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attrs)
+                .setWillPauseWhenDucked(false)
+                .build();
+            am.requestAudioFocus(focusRequest);
+        } else {
+            am.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+        }
+    }
+
     private void injectScript(WebView view) {
         if (pitchCode.isEmpty() || injectCode.isEmpty()) return;
         String quoted = JSONObject.quote(pitchCode);
@@ -171,6 +210,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        stopService(new android.content.Intent(this, PlaybackService.class));
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (am != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest != null) {
+            am.abandonAudioFocusRequest(focusRequest);
+        }
         webView.destroy();
         super.onDestroy();
     }

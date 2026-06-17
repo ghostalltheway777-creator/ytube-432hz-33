@@ -4,6 +4,30 @@
   if (window.__q432_loaded) return;
   window.__q432_loaded = true;
 
+  // ── Hold YouTube i gang når skærmen er låst / app i baggrund ─────────────────
+  // YouTube pauser sig selv når siden bliver "skjult" (Page Visibility API).
+  // Vi narrer siden til altid at tro den er synlig + blokerer pause-events.
+  (function keepAlive() {
+    const fake = {
+      hidden: false, visibilityState: 'visible',
+      webkitHidden: false, webkitVisibilityState: 'visible',
+    };
+    for (const k in fake) {
+      try {
+        Object.defineProperty(Document.prototype, k, { configurable: true, get: () => fake[k] });
+      } catch (_) {}
+      try {
+        Object.defineProperty(document, k, { configurable: true, get: () => fake[k] });
+      } catch (_) {}
+    }
+    // Slug de events YouTube bruger til at pause i baggrund
+    const swallow = (e) => { e.stopImmediatePropagation(); };
+    ['visibilitychange', 'webkitvisibilitychange', 'blur', 'pagehide', 'freeze'].forEach((ev) => {
+      window.addEventListener(ev, swallow, true);
+      document.addEventListener(ev, swallow, true);
+    });
+  })();
+
   const RATIO = 432 / 440;
   let enabled = false;
   let ctx = null, source = null, pitch = null, curVideo = null, warming = null;
