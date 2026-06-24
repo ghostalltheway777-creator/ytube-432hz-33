@@ -10,6 +10,8 @@ import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
+import android.app.PictureInPictureParams;
+import android.util.Rational;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
@@ -192,6 +194,28 @@ public class MainActivity extends AppCompatActivity {
             return out.toString("UTF-8");
         } catch (IOException e) {
             return "";
+        }
+    }
+
+    // Auto-PiP: naar brugeren forlader appen (Home / app-skift), kroeb ned i et
+    // lille vindue i hjoernet og bliv ved med at spille - praecis som YouTube.
+    @Override
+    public void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        enterPipIfPossible();
+    }
+
+    private void enterPipIfPossible() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            && getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            try {
+                PictureInPictureParams params = new PictureInPictureParams.Builder()
+                    .setAspectRatio(new Rational(16, 9))
+                    .build();
+                enterPictureInPictureMode(params);
+            } catch (IllegalStateException | IllegalArgumentException e) {
+                // PiP ikke muligt lige nu - ignorer stille
+            }
         }
     }
 
