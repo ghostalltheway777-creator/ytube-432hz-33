@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write   # kraeves for at action-gh-release kan oprette/opdatere release'en
+
 jobs:
   build:
     runs-on: ubuntu-latest
