@@ -108,7 +108,8 @@
     const v = getVideo();
     if (!v) return false;
     warming = (async () => {
-      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // 'playback' = stoerre lyd-buffer => taaler at Android struber baggrunden uden at hakke
+      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
       // Inline processor via Blob — ingen chrome.runtime.getURL nødvendig
       const blob = new Blob([window.__PITCH_CODE__], { type: 'application/javascript' });
       const url  = URL.createObjectURL(blob);

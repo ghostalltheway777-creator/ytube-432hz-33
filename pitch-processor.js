@@ -21,6 +21,12 @@ class PitchProcessor extends AudioWorkletProcessor {
     this.W = 2048;                 // vinduebredde (~46 ms ved 44.1 kHz)
     this.ringSize = this.W * 2;
     this.ch = [];                  // per-kanal tilstand (lazy)
+    // Forudbereg Hann-vindue som tabel -> ingen Math.cos pr. sample (mindre CPU,
+    // mindre hak naar baggrunden strubes).
+    this.win = new Float32Array(this.W);
+    for (let n = 0; n < this.W; n++) {
+      this.win[n] = 0.5 - 0.5 * Math.cos((Math.PI * 2 * n) / this.W);
+    }
   }
 
   _ensure(n) {
@@ -47,6 +53,8 @@ class PitchProcessor extends AudioWorkletProcessor {
     const ringSize = this.ringSize;
     const TWO_PI = Math.PI * 2;
 
+    const winLUT = this.win;
+
     for (let c = 0; c < nch; c++) {
       const outC = output[c];
       const inC = (input && input[c]) || (input && input[0]) || null;
@@ -59,7 +67,9 @@ class PitchProcessor extends AudioWorkletProcessor {
 
         let s = 0;
         for (let k = 0; k < 2; k++) {
-          const win = 0.5 - 0.5 * Math.cos((TWO_PI * d[k]) / W);   // 0 ved delay 0 og W
+          let wi = d[k] | 0;                 // floor (d[k] er altid 0..W)
+          if (wi >= W) wi -= W;
+          const win = winLUT[wi];            // 0 ved delay 0 og W (tabel-opslag)
 
           let rp = st.write - d[k];
           if (rp < 0) rp += ringSize;
