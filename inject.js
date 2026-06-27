@@ -34,19 +34,22 @@
   // vi straks igen. I forgrunden respekterer vi brugerens egne pauser.
   window.__appBackground = window.__appBackground || false;
   (function keepPlaying() {
-    let lastResume = 0;
     function attach(v) {
       if (!v || v.__q432_keep) return;
       v.__q432_keep = true;
       v.addEventListener('pause', () => {
-        if (!window.__appBackground) return;
-        const now = Date.now();
-        if (now - lastResume < 1000) return;   // undgaa play/pause-kamp (hak)
-        lastResume = now;
-        setTimeout(() => { try { v.play(); } catch (_) {} }, 150);
+        if (window.__appBackground) {
+          setTimeout(() => { try { v.play(); } catch (_) {} }, 50);
+        }
       });
     }
     setInterval(() => { attach(document.querySelector('video')); }, 1000);
+    // Ekstra sikkerhed: tjek lObende i baggrund at den faktisk spiller
+    setInterval(() => {
+      if (!window.__appBackground) return;
+      const v = document.querySelector('video');
+      if (v && v.paused) { try { v.play(); } catch (_) {} }
+    }, 700);
   })();
 
   // Kaldes fra Android: skift play/pause og returner ny tilstand ('true'=spiller)
