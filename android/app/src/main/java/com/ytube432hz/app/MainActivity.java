@@ -2,16 +2,25 @@ package com.ytube432hz.app;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
+import android.app.PendingIntent;
 import android.app.PictureInPictureParams;
+import android.app.RemoteAction;
 import android.util.Rational;
+import java.util.ArrayList;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
@@ -36,6 +45,10 @@ public class MainActivity extends AppCompatActivity {
     private PowerManager.WakeLock wakeLock;
     private long lastBackPress = 0;
     private AudioFocusRequest focusRequest;
+
+    private static final String ACTION_PIP_TOGGLE = "com.ytube432hz.app.PIP_TOGGLE";
+    private BroadcastReceiver pipReceiver;
+    private boolean isPlaying = true;
 
     private static final String UA =
         "Mozilla/5.0 (Linux; Android 12; Pixel 6) " +
@@ -71,6 +84,27 @@ public class MainActivity extends AppCompatActivity {
 
         // Foreground-service holder processen i live når skærmen er låst
         PlaybackService.start(this);
+
+        // Modtager for play/pause-knappen i PiP-vinduet
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context c, Intent i) {
+                    if (ACTION_PIP_TOGGLE.equals(i.getAction()) && webView != null) {
+                        webView.evaluateJavascript("window.__q432_toggle && window.__q432_toggle()", value -> {
+                            isPlaying = "true".equals(value);
+                            updatePipActions();
+                        });
+                    }
+                }
+            };
+            IntentFilter filter = new IntentFilter(ACTION_PIP_TOGGLE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(pipReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(pipReceiver, filter);
+            }
+        }
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.BLACK);
@@ -209,30 +243,70 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             && getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             try {
-                PictureInPictureParams params = new PictureInPictureParams.Builder()
-                    .setAspectRatio(new Rational(16, 9))
-                    .build();
-                enterPictureInPictureMode(params);
+                enterPictureInPictureMode(buildPipParams());
             } catch (IllegalStateException | IllegalArgumentException e) {
                 // PiP ikke muligt lige nu - ignorer stille
             }
         }
     }
 
+    // Bygger PiP-vinduet med en play/pause-knap der afspejler nuvaerende tilstand
+    private PictureInPictureParams buildPipParams() {
+        PictureInPictureParams.Builder b = new PictureInPictureParams.Builder()
+            .setAspectRatio(new Rational(16, 9));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            int iconRes = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+            String label = isPlaying ? "Pause" : "Afspil";
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+            PendingIntent pi = PendingIntent.getBroadcast(this, 0,
+                new Intent(ACTION_PIP_TOGGLE).setPackage(getPackageName()), piFlags);
+            RemoteAction action = new RemoteAction(
+                Icon.createWithResource(this, iconRes), label, label, pi);
+            ArrayList<RemoteAction> actions = new ArrayList<>();
+            actions.add(action);
+            b.setActions(actions);
+        }
+        return b.build();
+    }
+
+    private void updatePipActions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode()) {
+            try { setPictureInPictureParams(buildPipParams()); } catch (IllegalStateException e) { /* ignore */ }
+        }
+    }
+
+    // Fortael web-siden om appen er i baggrund, saa den kan auto-genoptage afspilning
+    private void setWebBackground(boolean bg) {
+        if (webView != null) {
+            webView.evaluateJavascript("window.__appBackground=" + (bg ? "true" : "false"), null);
+        }
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean inPip, Configuration newConfig) {
+        super.onPictureInPictureModeChanged(inPip, newConfig);
+        setWebBackground(inPip);
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
         // Do NOT pause WebView — audio must keep playing in background
+        setWebBackground(true);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         webView.onResume();
+        setWebBackground(false);
     }
 
     @Override
     protected void onDestroy() {
+        if (pipReceiver != null) {
+            try { unregisterReceiver(pipReceiver); } catch (IllegalArgumentException e) { /* ikke registreret */ }
+        }
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         stopService(new android.content.Intent(this, PlaybackService.class));
         AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);

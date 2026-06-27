@@ -28,6 +28,32 @@
     });
   })();
 
+  // ── Auto-genoptag i baggrund / PiP ───────────────────────────────────────────
+  // Android saetter window.__appBackground=true naar appen forlades (se MainActivity).
+  // Hvis YouTube eller systemet forsoeger at pause mens vi er i baggrunden, starter
+  // vi straks igen. I forgrunden respekterer vi brugerens egne pauser.
+  window.__appBackground = window.__appBackground || false;
+  (function keepPlaying() {
+    function attach(v) {
+      if (!v || v.__q432_keep) return;
+      v.__q432_keep = true;
+      v.addEventListener('pause', () => {
+        if (window.__appBackground) {
+          setTimeout(() => { try { v.play(); } catch (_) {} }, 50);
+        }
+      });
+    }
+    setInterval(() => { attach(document.querySelector('video')); }, 1000);
+  })();
+
+  // Kaldes fra Android: skift play/pause og returner ny tilstand ('true'=spiller)
+  window.__q432_toggle = function () {
+    const v = document.querySelector('video');
+    if (!v) return false;
+    if (v.paused) { v.play(); return true; }
+    v.pause(); return false;
+  };
+
   const RATIO = 432 / 440;
   let enabled = false;
   let ctx = null, source = null, pitch = null, curVideo = null, warming = null;
