@@ -34,13 +34,16 @@
   // vi straks igen. I forgrunden respekterer vi brugerens egne pauser.
   window.__appBackground = window.__appBackground || false;
   (function keepPlaying() {
+    let lastResume = 0;
     function attach(v) {
       if (!v || v.__q432_keep) return;
       v.__q432_keep = true;
       v.addEventListener('pause', () => {
-        if (window.__appBackground) {
-          setTimeout(() => { try { v.play(); } catch (_) {} }, 50);
-        }
+        if (!window.__appBackground) return;
+        const now = Date.now();
+        if (now - lastResume < 1000) return;   // undgaa play/pause-kamp (hak)
+        lastResume = now;
+        setTimeout(() => { try { v.play(); } catch (_) {} }, 150);
       });
     }
     setInterval(() => { attach(document.querySelector('video')); }, 1000);
@@ -208,7 +211,10 @@
   }
 
   // ── Reklame-skipper ───────────────────────────────────────────────────────────
+  let __adTick = 0;
   setInterval(() => {
+    // I baggrund/PiP: koer kun ~hvert 7. tick (=~1,4s) saa lyden faar CPU-ro
+    if (window.__appBackground && (__adTick++ % 7 !== 0)) return;
     const player = document.querySelector('.html5-video-player');
     const isAd = player && (
       player.classList.contains('ad-showing') ||
