@@ -33,12 +33,14 @@
   // Hvis YouTube eller systemet forsoeger at pause mens vi er i baggrunden, starter
   // vi straks igen. I forgrunden respekterer vi brugerens egne pauser.
   window.__appBackground = window.__appBackground || false;
+  window.__userPaused = window.__userPaused || false;
   (function keepPlaying() {
     function attach(v) {
       if (!v || v.__q432_keep) return;
       v.__q432_keep = true;
       v.addEventListener('pause', () => {
-        if (window.__appBackground) {
+        // Genoptag KUN hvis vi er i baggrund OG brugeren ikke selv pausede
+        if (window.__appBackground && !window.__userPaused) {
           setTimeout(() => { try { v.play(); } catch (_) {} }, 50);
         }
       });
@@ -46,18 +48,20 @@
     setInterval(() => { attach(document.querySelector('video')); }, 1000);
     // Ekstra sikkerhed: tjek lObende i baggrund at den faktisk spiller
     setInterval(() => {
-      if (!window.__appBackground) return;
+      if (!window.__appBackground || window.__userPaused) return;
       const v = document.querySelector('video');
       if (v && v.paused) { try { v.play(); } catch (_) {} }
     }, 700);
   })();
 
-  // Kaldes fra Android: skift play/pause og returner ny tilstand ('true'=spiller)
+  // Kaldes fra Android (play/pause-knap i PiP): skift play/pause og returner ny
+  // tilstand ('true'=spiller). Saetter __userPaused saa baggrunds-vagten ikke
+  // straks genoptager en pause brugeren selv valgte.
   window.__q432_toggle = function () {
     const v = document.querySelector('video');
     if (!v) return false;
-    if (v.paused) { v.play(); return true; }
-    v.pause(); return false;
+    if (v.paused) { window.__userPaused = false; v.play(); return true; }
+    window.__userPaused = true; v.pause(); return false;
   };
 
   const RATIO = 432 / 440;

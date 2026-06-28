@@ -110,6 +110,12 @@ public class MainActivity extends AppCompatActivity {
         webView.setBackgroundColor(Color.BLACK);
         setContentView(webView);
 
+        // Behold HOEJ renderer-prioritet OGSAA naar appen ikke er synlig (baggrund/PiP).
+        // Uden dette saenker Android prioriteten -> lyden hakker i baggrunden.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+        }
+
         pitchCode = readAsset("pitch-processor.js");
         injectCode = readAsset("inject.js");
 
