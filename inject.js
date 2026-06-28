@@ -64,9 +64,8 @@
     window.__userPaused = true; v.pause(); return false;
   };
 
-  const RATIO = 432 / 440;
+  const RATE = 432 / 440;   // afspilnings-rate der saenker tonen til 432 Hz
   let enabled = false;
-  let ctx = null, source = null, pitch = null, curVideo = null, warming = null;
 
   // ── CSS (pill + felt) ───────────────────────────────────────────────────────
   const style = document.createElement('style');
@@ -109,68 +108,31 @@
   `;
   document.head.appendChild(style);
 
-  // ── Lyd-graf ─────────────────────────────────────────────────────────────────
+  // ── 432 Hz via afspilnings-rate (telefonens egen afspiller, ingen tung motor) ──
   function getVideo() { return document.querySelector('video'); }
 
-  async function warmUp() {
-    if (ctx) return true;
-    if (warming) return warming;
-    const v = getVideo();
-    if (!v) return false;
-    warming = (async () => {
-      // 'playback' = stoerre lyd-buffer => taaler at Android struber baggrunden uden at hakke
-      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
-      // Inline processor via Blob — ingen chrome.runtime.getURL nødvendig
-      const blob = new Blob([window.__PITCH_CODE__], { type: 'application/javascript' });
-      const url  = URL.createObjectURL(blob);
-      await ctx.audioWorklet.addModule(url);
-      URL.revokeObjectURL(url);
-      buildGraph(v);
-      return true;
-    })();
-    return warming;
-  }
-
-  function buildGraph(v) {
-    curVideo = v;
-    source = ctx.createMediaElementSource(v);
-    pitch  = new AudioWorkletNode(ctx, 'pitch-processor', {
-      numberOfInputs:1, numberOfOutputs:1, channelCount:2, outputChannelCount:[2],
-    });
-    try { pitch.parameters.get('ratio').value = RATIO; } catch (_) {}
-    route();
-  }
-
-  function route() {
-    if (!source) return;
-    try { source.disconnect(); } catch (_) {}
-    try { pitch  && pitch.disconnect();  } catch (_) {}
-    if (enabled && pitch) {
-      source.connect(pitch);
-      pitch.connect(ctx.destination);
-    } else {
-      source.connect(ctx.destination);
+  // Saetter video til 432 Hz (rate ned ~1,8% => tonen falder til 432) eller normal.
+  function applyRate(v) {
+    if (!v) return;
+    const pres = !enabled;            // 432 til => pitch SKAL aendre sig => preserve=false
+    try { v.preservesPitch = pres; } catch (_) {}
+    try { v.webkitPreservesPitch = pres; } catch (_) {}
+    try { v.mozPreservesPitch = pres; } catch (_) {}
+    const target = enabled ? RATE : 1;
+    if (Math.abs((v.playbackRate || 1) - target) > 0.0005) {
+      try { v.playbackRate = target; } catch (_) {}
     }
   }
 
-  // Hold styr på når YouTube udskifter <video>-elementet (SPA-navigation)
+  // Hold raten ved lige: YouTube nulstiller den ved nyt klip / SPA-skift.
   setInterval(() => {
-    if (!ctx) return;
-    const v = getVideo();
-    if (v && v !== curVideo) {
-      try { source && source.disconnect(); } catch (_) {}
-      try { pitch  && pitch.disconnect();  } catch (_) {}
-      try { buildGraph(v); } catch (_) {}
-    }
-  }, 1500);
+    if (enabled) applyRate(getVideo());
+  }, 1000);
 
   // ── Toggle ────────────────────────────────────────────────────────────────────
-  async function setEnabled(on) {
-    const ok = await warmUp();
-    if (!ok) { flash('Ingen video endnu'); return; }
-    if (ctx.state === 'suspended') await ctx.resume();
+  function setEnabled(on) {
     enabled = on;
-    route();
+    applyRate(getVideo());
     try { localStorage.setItem('q432_on', on ? '1' : '0'); } catch (_) {}
     updateUI();
     if (enabled) collapseField();
@@ -251,23 +213,10 @@
   // ── Init ──────────────────────────────────────────────────────────────────────
   function init() {
     buildUI();
-
-    // Gendan sidst brugte tilstand
+    // Gendan sidst brugte tilstand (rate-metoden kraever ingen berOering/gestus)
     try {
-      if (localStorage.getItem('q432_on') === '1') {
-        const go = () => {
-          setEnabled(true);
-          window.removeEventListener('pointerdown', go);
-          window.removeEventListener('keydown', go);
-        };
-        window.addEventListener('pointerdown', go, { once: true });
-        window.addEventListener('keydown',    go, { once: true });
-      }
+      if (localStorage.getItem('q432_on') === '1') setEnabled(true);
     } catch (_) {}
-
-    // Forvarm AudioContext ved første gestus
-    const prime = () => { warmUp(); window.removeEventListener('pointerdown', prime); };
-    window.addEventListener('pointerdown', prime, { once: true });
   }
 
   if (document.body) init();
