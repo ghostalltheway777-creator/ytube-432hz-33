@@ -237,12 +237,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Auto-PiP: naar brugeren forlader appen (Home / app-skift), kroeb ned i et
-    // lille vindue i hjoernet og bliv ved med at spille - praecis som YouTube.
+    // TEST v3.1: auto-PiP slaaet FRA. Vi tester om ren baggrundslyd (uden det lille
+    // video-vindue) spiller glat - for at isolere om PiP-vinduet var aarsagen til hak.
     @Override
     public void onUserLeaveHint() {
         super.onUserLeaveHint();
-        enterPipIfPossible();
+        // enterPipIfPossible();  // <- bevidst deaktiveret i denne test-version
     }
 
     private void enterPipIfPossible() {
